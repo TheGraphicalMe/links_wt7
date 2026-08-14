@@ -213,21 +213,36 @@ export default function GridBackground() {
       }
     }
 
-    const handleMouseLeave = () => {
+    const handleTouchMove = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        targetMouseRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        if (currentMouseRef.current.x < -1000) {
+          currentMouseRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        }
+      }
+    }
+
+    const handleInteractionEnd = () => {
       targetMouseRef.current = { x: -9999, y: -9999 }
     }
 
     resize()
     window.addEventListener('resize', resize)
     window.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseleave', handleMouseLeave)
+    window.addEventListener('touchstart', handleTouchMove, { passive: true })
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+    document.addEventListener('mouseleave', handleInteractionEnd)
+    window.addEventListener('touchend', handleInteractionEnd)
 
     animFrameRef.current = requestAnimationFrame(draw)
 
     return () => {
       window.removeEventListener('resize', resize)
       window.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseleave', handleMouseLeave)
+      window.removeEventListener('touchstart', handleTouchMove)
+      window.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('mouseleave', handleInteractionEnd)
+      window.removeEventListener('touchend', handleInteractionEnd)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
   }, [draw])
