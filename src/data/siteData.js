@@ -1,7 +1,7 @@
 export const profileData = {
   name: 'Wizard Trader',
   tagline: 'Master the Markets with Precision',
-  subtitle: 'Trader · Educator · 500K+ Community',
+  subtitle: 'Trader · Educator · 10K+ Students Trained',
   verified: true,
 }
 
