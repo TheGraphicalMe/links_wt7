@@ -232,7 +232,6 @@ export default function GridBackground() {
     window.addEventListener('touchstart', handleTouchMove, { passive: true })
     window.addEventListener('touchmove', handleTouchMove, { passive: true })
     document.addEventListener('mouseleave', handleInteractionEnd)
-    window.addEventListener('touchend', handleInteractionEnd)
 
     animFrameRef.current = requestAnimationFrame(draw)
 
@@ -242,7 +241,6 @@ export default function GridBackground() {
       window.removeEventListener('touchstart', handleTouchMove)
       window.removeEventListener('touchmove', handleTouchMove)
       document.removeEventListener('mouseleave', handleInteractionEnd)
-      window.removeEventListener('touchend', handleInteractionEnd)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
   }, [draw])
