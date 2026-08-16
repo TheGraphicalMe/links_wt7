@@ -16,13 +16,24 @@ export default function GridBackground() {
     const candleWidth = 14
     const spacing = 28
     const count = Math.ceil(width / spacing) + 4
-    let price = height * 0.5
+    
+    // Generate base random walk
+    let currentPrice = height * 0.5
+    const prices = []
+    for (let i = 0; i <= count; i++) {
+      prices.push(currentPrice)
+      currentPrice += (Math.random() - 0.48) * 40
+    }
+    
+    // Smooth out drift so the end perfectly matches the start
+    const drift = prices[count] - prices[0]
+    for (let i = 0; i <= count; i++) {
+      prices[i] -= (i / count) * drift
+    }
 
     for (let i = 0; i < count; i++) {
-      const change = (Math.random() - 0.48) * 40
-      const open = price
-      price += change
-      const close = price
+      const open = prices[i]
+      const close = prices[i + 1]
       const high = Math.max(open, close) - Math.random() * 25
       const low = Math.min(open, close) + Math.random() * 25
       const bullish = close < open
@@ -85,30 +96,28 @@ export default function GridBackground() {
     const mx = currentMouseRef.current.x
     const my = currentMouseRef.current.y
 
-    // 1. Deep navy background
-    ctx.fillStyle = '#0a0e1a'
+    // 1. Deep dark background to maximize contrast
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, height)
+    bgGrad.addColorStop(0, '#070a14') // Very dark navy
+    bgGrad.addColorStop(1, '#020305') // Almost pitch black
+    ctx.fillStyle = bgGrad
     ctx.fillRect(0, 0, width, height)
 
-    // 2. Ambient gradients
-    const breath = Math.sin(time * 0.6) * 0.015
+    // 2. Single intense concentrated gradient
+    const breath = Math.sin(time * 0.8) * 0.05
 
-    const gradTR = ctx.createRadialGradient(width * 0.85, height * 0.1, 0, width * 0.85, height * 0.1, width * 0.5)
-    gradTR.addColorStop(0, `rgba(14, 224, 224, ${0.06 + breath})`)
-    gradTR.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradTR
-    ctx.fillRect(0, 0, width, height)
-
-    const gradBL = ctx.createRadialGradient(width * 0.15, height * 0.9, 0, width * 0.15, height * 0.9, width * 0.5)
-    gradBL.addColorStop(0, `rgba(201, 168, 124, ${0.07 - breath})`)
-    gradBL.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradBL
-    ctx.fillRect(0, 0, width, height)
-
-    // Center subtle glow
-    const gradCenter = ctx.createRadialGradient(width * 0.5, height * 0.4, 0, width * 0.5, height * 0.4, width * 0.4)
-    gradCenter.addColorStop(0, `rgba(20, 30, 60, ${0.4 + breath})`)
-    gradCenter.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradCenter
+    // Intense Cyan/Teal glow localized to the top-center
+    // Small radius for high intensity and contrast
+    const intenseGrad = ctx.createRadialGradient(
+      width * 0.5, height * 0.15, 0, 
+      width * 0.5, height * 0.15, Math.min(width * 0.35, 400)
+    )
+    
+    intenseGrad.addColorStop(0, `rgba(14, 224, 224, ${0.35 + breath})`) // Very bright core
+    intenseGrad.addColorStop(0.4, `rgba(14, 224, 224, ${0.1 + breath * 0.5})`) // Fast falloff
+    intenseGrad.addColorStop(1, 'rgba(0,0,0,0)') // Fades to nothing
+    
+    ctx.fillStyle = intenseGrad
     ctx.fillRect(0, 0, width, height)
 
     // 3. Horizontal price levels
@@ -130,10 +139,14 @@ export default function GridBackground() {
     ctx.setLineDash([])
 
     // 4. Volume bars at the bottom
-    const scrollOffset = (time * 8) % 28
+    const totalWidth = candlesRef.current.length * 28 // count * spacing
+    const scrollOffset = time * 12 // Continuous scroll speed
     const volBaseY = height - 10
+    
     candlesRef.current.forEach((c) => {
-      const drawX = c.x - scrollOffset
+      let drawX = c.x - (scrollOffset % totalWidth)
+      if (drawX < -60) drawX += totalWidth // Seamless wrap around
+
       if (drawX < -30 || drawX > width + 30) return
 
       const vdx = mx - (drawX + c.width / 2)
@@ -166,7 +179,9 @@ export default function GridBackground() {
 
     // 5. Candlesticks with enhanced glow
     candlesRef.current.forEach((c) => {
-      const drawX = c.x - scrollOffset
+      let drawX = c.x - (scrollOffset % totalWidth)
+      if (drawX < -60) drawX += totalWidth // Seamless wrap around
+
       if (drawX < -30 || drawX > width + 30) return
 
       const cdx = mx - (drawX + c.width / 2)
