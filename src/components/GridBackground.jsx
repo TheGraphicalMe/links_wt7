@@ -106,11 +106,11 @@ export default function GridBackground() {
     // 2. Single intense concentrated gradient
     const breath = Math.sin(time * 0.8) * 0.05
 
-    // Intense Cyan/Teal glow localized to the top-center
-    // Small radius for high intensity and contrast
+    // Intense Cyan/Teal glow localized behind the profile avatar
+    // Adjusted radius and position so it's perfectly visible on mobile screens
     const intenseGrad = ctx.createRadialGradient(
-      width * 0.5, height * 0.15, 0, 
-      width * 0.5, height * 0.15, Math.min(width * 0.35, 400)
+      width * 0.5, height * 0.35, 0, 
+      width * 0.5, height * 0.35, Math.max(width * 0.4, 300)
     )
     
     intenseGrad.addColorStop(0, `rgba(14, 224, 224, ${0.35 + breath})`) // Very bright core
