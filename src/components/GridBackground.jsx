@@ -5,34 +5,68 @@ export default function GridBackground() {
   const targetMouseRef = useRef({ x: -9999, y: -9999 })
   const currentMouseRef = useRef({ x: -9999, y: -9999 })
   const animFrameRef = useRef(null)
-  const particlesRef = useRef([])
-  const orbsRef = useRef([])
+  const candlesRef = useRef([])
   const timeRef = useRef(0)
 
-  const CELL_SIZE = 70
-  const GAP = 4
-  const CORNER_RADIUS = 10
-  const GLOW_RADIUS = 280
-  const MAX_SCALE = 1.15
+  const GLOW_RADIUS = 320
 
-  const initParticlesAndOrbs = (width, height) => {
-    // Particles (dust)
-    const pCount = Math.floor((width * height) / 4000)
-    const p = []
-    for (let i = 0; i < pCount; i++) {
-      p.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        size: Math.random() * 1.5 + 0.5,
-        baseAlpha: Math.random() * 0.4 + 0.1,
-        timeOffset: Math.random() * 100
+  // Generate candlestick data with volume
+  const initCandles = (width, height) => {
+    const candles = []
+    const candleWidth = 14
+    const spacing = 28
+    const count = Math.ceil(width / spacing) + 4
+    let price = height * 0.5
+
+    for (let i = 0; i < count; i++) {
+      const change = (Math.random() - 0.48) * 40
+      const open = price
+      price += change
+      const close = price
+      const high = Math.max(open, close) - Math.random() * 25
+      const low = Math.min(open, close) + Math.random() * 25
+      const bullish = close < open
+
+      candles.push({
+        x: i * spacing,
+        open, close, high, low, bullish,
+        width: candleWidth,
+        alpha: 0.06 + Math.random() * 0.06,
+        timeOffset: Math.random() * 10,
+        volume: 15 + Math.random() * 45, // volume bar height
       })
     }
-    particlesRef.current = p
+    candlesRef.current = candles
+  }
 
-    // Removed roaming orbs in favor of specific localized corner gradients
+  // Smooth price line
+  const getPriceLine = (width, height, time) => {
+    const points = []
+    const segments = 120
+    const step = width / segments
+    for (let i = 0; i <= segments; i++) {
+      const x = i * step
+      const y =
+        height * 0.45 +
+        Math.sin(i * 0.08 + time * 0.4) * height * 0.08 +
+        Math.sin(i * 0.03 + time * 0.2) * height * 0.12 +
+        Math.cos(i * 0.15 + time * 0.6) * height * 0.03
+      points.push({ x, y })
+    }
+    return points
+  }
+
+
+  // Draw a smooth curve through points
+  const drawCurve = (ctx, points) => {
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1]
+      const curr = points[i]
+      const cpx = (prev.x + curr.x) / 2
+      ctx.quadraticCurveTo(prev.x, prev.y, cpx, (prev.y + curr.y) / 2)
+    }
   }
 
   const draw = useCallback(() => {
@@ -41,156 +75,269 @@ export default function GridBackground() {
 
     const ctx = canvas.getContext('2d')
     const { width, height } = canvas
-    
-    timeRef.current += 0.016
+
+    timeRef.current += 0.008
     const time = timeRef.current
 
-    // Smooth mouse interpolation (lerp)
+    // Smooth mouse interpolation
     currentMouseRef.current.x += (targetMouseRef.current.x - currentMouseRef.current.x) * 0.08
     currentMouseRef.current.y += (targetMouseRef.current.y - currentMouseRef.current.y) * 0.08
-    
     const mx = currentMouseRef.current.x
     const my = currentMouseRef.current.y
 
-    // 1. Draw Deep Base Background
-    ctx.fillStyle = '#040509' 
+    // 1. Deep navy background
+    ctx.fillStyle = '#0a0e1a'
     ctx.fillRect(0, 0, width, height)
 
-    // 2. Localized Ambient Gradients (Complementing Hover: Rose, Gold, Lavender)
-    // Kept in specific corners (Top-Right and Bottom-Left)
-    const breath = Math.sin(time * 0.6) * 0.02
+    // 2. Ambient gradients
+    const breath = Math.sin(time * 0.6) * 0.015
 
-    // Top Right Area (Lavender & Rose)
-    const gradTR = ctx.createRadialGradient(width, 0, 0, width, 0, width * 0.5)
-    gradTR.addColorStop(0, `rgba(167, 139, 219, ${0.1 + breath})`) // Lavender
-    gradTR.addColorStop(0.5, `rgba(212, 132, 122, ${0.05 + breath})`) // Rose
+    const gradTR = ctx.createRadialGradient(width * 0.85, height * 0.1, 0, width * 0.85, height * 0.1, width * 0.5)
+    gradTR.addColorStop(0, `rgba(14, 224, 224, ${0.06 + breath})`)
     gradTR.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = gradTR
     ctx.fillRect(0, 0, width, height)
 
-    // Bottom Left Area (Gold)
-    const gradBL = ctx.createRadialGradient(0, height, 0, 0, height, width * 0.5)
-    gradBL.addColorStop(0, `rgba(201, 168, 124, ${0.08 - breath})`) // Gold
+    const gradBL = ctx.createRadialGradient(width * 0.15, height * 0.9, 0, width * 0.15, height * 0.9, width * 0.5)
+    gradBL.addColorStop(0, `rgba(201, 168, 124, ${0.07 - breath})`)
     gradBL.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = gradBL
     ctx.fillRect(0, 0, width, height)
 
-    // 3. Draw Grid
-    const cols = Math.ceil(width / (CELL_SIZE + GAP)) + 2
-    const rows = Math.ceil(height / (CELL_SIZE + GAP)) + 2
+    // Center subtle glow
+    const gradCenter = ctx.createRadialGradient(width * 0.5, height * 0.4, 0, width * 0.5, height * 0.4, width * 0.4)
+    gradCenter.addColorStop(0, `rgba(20, 30, 60, ${0.4 + breath})`)
+    gradCenter.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = gradCenter
+    ctx.fillRect(0, 0, width, height)
 
-    const totalW = cols * (CELL_SIZE + GAP)
-    const totalH = rows * (CELL_SIZE + GAP)
-    const offX = (width - totalW) / 2
-    const offY = (height - totalH) / 2
+    // 3. Horizontal price levels
+    const levelCount = 12
+    for (let i = 1; i < levelCount; i++) {
+      const y = (height / levelCount) * i
+      const shimmer = Math.sin(time * 0.5 + i * 0.7) * 0.01
+      const lineDist = Math.abs(my - y)
+      const lineGlow = mx > -1000 ? Math.max(0, 1 - lineDist / 150) * 0.15 : 0
 
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const cellX = offX + c * (CELL_SIZE + GAP)
-        const cellY = offY + r * (CELL_SIZE + GAP)
-        const centerX = cellX + CELL_SIZE / 2
-        const centerY = cellY + CELL_SIZE / 2
-
-        const dx = mx - centerX
-        const dy = my - centerY
-        const dist = Math.sqrt(dx * dx + dy * dy)
-
-        const intensity = Math.max(0, 1 - dist / GLOW_RADIUS)
-        const eased = intensity * intensity * intensity // Sharper falloff for premium feel
-
-        const wave1 = Math.sin(cellX * 0.001 + time * 0.8)
-        const wave2 = Math.cos(cellY * 0.0015 - time * 0.6)
-        const ambientShimmer = (wave1 + wave2 + 2) / 4
-
-        const scale = 1 + (MAX_SCALE - 1) * eased
-        const scaledSize = CELL_SIZE * scale
-        const drawX = centerX - scaledSize / 2
-        const drawY = centerY - scaledSize / 2
-        const r_scaled = CORNER_RADIUS * scale
-
-        // Base cell fill - glassy and translucent
-        const baseAlpha = 0.01 + ambientShimmer * 0.015
-        const hoverAlpha = baseAlpha + eased * 0.18
-        
-        ctx.fillStyle = `rgba(255, 255, 255, ${hoverAlpha})`
-        
-        // Shadow for depth
-        if (eased > 0.01) {
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'
-          ctx.shadowBlur = 15 * eased
-          ctx.shadowOffsetY = 8 * eased
-        } else {
-          ctx.shadowColor = 'transparent'
-          ctx.shadowBlur = 0
-        }
-
-        drawRoundedRect(ctx, drawX, drawY, scaledSize, scaledSize, r_scaled)
-        ctx.fill()
-        ctx.shadowColor = 'transparent' // reset
-
-        // Inner top-left highlight (glass bevel)
-        const bevelAlpha = 0.015 + ambientShimmer * 0.02 + eased * 0.2
-        ctx.strokeStyle = `rgba(255, 255, 255, ${bevelAlpha})`
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.moveTo(drawX + r_scaled, drawY)
-        ctx.lineTo(drawX + scaledSize - r_scaled, drawY)
-        ctx.moveTo(drawX, drawY + r_scaled)
-        ctx.lineTo(drawX, drawY + scaledSize - r_scaled)
-        ctx.stroke()
-
-        // Reactive border stroke (Rose Gold / Gold / Lavender mix)
-        const borderAlpha = 0.02 + ambientShimmer * 0.03 + eased * 0.8
-        const r_c = 212 - eased * 11
-        const g_c = 168 + eased * 20
-        const b_c = 124 + eased * 50
-        
-        ctx.strokeStyle = `rgba(${r_c}, ${g_c}, ${b_c}, ${borderAlpha})`
-        ctx.lineWidth = 1 + eased * 1.5
-        drawRoundedRect(ctx, drawX, drawY, scaledSize, scaledSize, r_scaled)
-        ctx.stroke()
-      }
-    }
-
-    // 4. Update & Draw Particles (Dust)
-    particlesRef.current.forEach(p => {
-      p.x += p.vx
-      p.y += p.vy
-      
-      // Wrap around
-      if (p.x < 0) p.x = width
-      if (p.x > width) p.x = 0
-      if (p.y < 0) p.y = height
-      if (p.y > height) p.y = 0
-
-      // Mouse interaction
-      const dx = mx - p.x
-      const dy = my - p.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      
-      let currentAlpha = p.baseAlpha + Math.sin(time * 2 + p.timeOffset) * 0.2
-      if (currentAlpha < 0) currentAlpha = 0
-      
-      // Highlight particles near cursor
-      if (dist < GLOW_RADIUS) {
-        currentAlpha += (1 - dist / GLOW_RADIUS) * 0.6
-      }
-
-      ctx.fillStyle = `rgba(212, 180, 150, ${currentAlpha})` // Soft gold tint
+      ctx.strokeStyle = `rgba(201, 168, 124, ${0.03 + shimmer + lineGlow})`
+      ctx.lineWidth = 0.5
+      ctx.setLineDash([6, 12])
       ctx.beginPath()
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.moveTo(0, y)
+      ctx.lineTo(width, y)
+      ctx.stroke()
+    }
+    ctx.setLineDash([])
+
+    // 4. Volume bars at the bottom
+    const scrollOffset = (time * 8) % 28
+    const volBaseY = height - 10
+    candlesRef.current.forEach((c) => {
+      const drawX = c.x - scrollOffset
+      if (drawX < -30 || drawX > width + 30) return
+
+      const vdx = mx - (drawX + c.width / 2)
+      const vdy = my - (volBaseY - c.volume / 2)
+      const vDist = Math.sqrt(vdx * vdx + vdy * vdy)
+      const vGlow = mx > -1000 ? Math.max(0, 1 - vDist / GLOW_RADIUS) : 0
+      const vEased = vGlow * vGlow
+
+      // Glow — always a subtle base, stronger on hover
+      ctx.shadowColor = c.bullish
+        ? `rgba(14, 224, 224, ${0.3 + Math.min(vEased * 1.2, 0.7)})`
+        : `rgba(255, 50, 50, ${0.3 + Math.min(vEased * 1.2, 0.7)})`
+      ctx.shadowBlur = 8 + 30 * vEased
+
+      const vAlpha = 0.35 + vEased * 0.4
+      ctx.fillStyle = c.bullish
+        ? `rgba(14, 220, 170, ${vAlpha})`
+        : `rgba(220, 70, 70, ${vAlpha})`
+      ctx.fillRect(drawX + 2, volBaseY - c.volume, c.width - 4, c.volume)
+
+      // Second glow pass for bloom
+      if (vEased > 0.1) {
+        ctx.shadowBlur = 45 * vEased
+        ctx.fillRect(drawX + 2, volBaseY - c.volume, c.width - 4, c.volume)
+      }
+
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
     })
 
-    // 5. Cursor Radial Glow (Premium multi-stop gradient)
+    // 5. Candlesticks with enhanced glow
+    candlesRef.current.forEach((c) => {
+      const drawX = c.x - scrollOffset
+      if (drawX < -30 || drawX > width + 30) return
+
+      const cdx = mx - (drawX + c.width / 2)
+      const cdy = my - ((c.open + c.close) / 2)
+      const cDist = Math.sqrt(cdx * cdx + cdy * cdy)
+      const cGlow = mx > -1000 ? Math.max(0, 1 - cDist / GLOW_RADIUS) : 0
+      const eased = cGlow * cGlow
+
+      const alpha = 0.25 + c.alpha + Math.sin(time + c.timeOffset) * 0.02 + eased * 0.85
+      const bodyTop = Math.min(c.open, c.close)
+      const bodyHeight = Math.max(Math.abs(c.close - c.open), 3)
+
+      // Always a subtle ambient glow, intensifies on hover
+      ctx.shadowColor = c.bullish
+        ? `rgba(14, 224, 224, ${0.25 + Math.min(eased * 1.5, 0.75)})`
+        : `rgba(255, 50, 50, ${0.25 + Math.min(eased * 1.5, 0.75)})`
+      ctx.shadowBlur = 6 + 45 * eased
+
+      // Wick
+      ctx.strokeStyle = c.bullish
+        ? `rgba(14, 220, 180, ${alpha * 0.9})`
+        : `rgba(220, 70, 70, ${alpha * 0.9})`
+      ctx.lineWidth = 1 + eased * 2
+      ctx.beginPath()
+      ctx.moveTo(drawX + c.width / 2, c.high)
+      ctx.lineTo(drawX + c.width / 2, c.low)
+      ctx.stroke()
+
+      // Body
+      ctx.fillStyle = c.bullish
+        ? `rgba(14, 220, 170, ${alpha})`
+        : `rgba(220, 70, 70, ${alpha})`
+      ctx.fillRect(drawX, bodyTop, c.width, bodyHeight)
+
+      // Second glow pass — wide bloom
+      if (eased > 0.05) {
+        ctx.shadowBlur = 60 * eased
+        ctx.fillRect(drawX, bodyTop, c.width, bodyHeight)
+      }
+
+      // Third glow pass — tight bright core
+      if (eased > 0.15) {
+        ctx.shadowColor = c.bullish
+          ? `rgba(180, 255, 240, ${eased * 0.6})`
+          : `rgba(255, 150, 150, ${eased * 0.6})`
+        ctx.shadowBlur = 20 * eased
+        ctx.fillRect(drawX, bodyTop, c.width, bodyHeight)
+      }
+
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+
+      // Border
+      ctx.strokeStyle = c.bullish
+        ? `rgba(14, 224, 224, ${alpha * 0.5 + eased * 0.6})`
+        : `rgba(230, 100, 100, ${alpha * 0.5 + eased * 0.6})`
+      ctx.lineWidth = 0.5 + eased * 2
+      ctx.strokeRect(drawX, bodyTop, c.width, bodyHeight)
+    })
+
+    // 6. Main price line
+    const points = getPriceLine(width, height, time)
+
+    // Line glow
+    ctx.shadowColor = 'rgba(14, 224, 224, 0.3)'
+    ctx.shadowBlur = 8
+
+    const lineGrad = ctx.createLinearGradient(0, 0, width, 0)
+    lineGrad.addColorStop(0, 'rgba(201, 168, 124, 0.0)')
+    lineGrad.addColorStop(0.2, 'rgba(201, 168, 124, 0.4)')
+    lineGrad.addColorStop(0.5, 'rgba(14, 224, 224, 0.5)')
+    lineGrad.addColorStop(0.8, 'rgba(201, 168, 124, 0.4)')
+    lineGrad.addColorStop(1, 'rgba(201, 168, 124, 0.0)')
+
+    ctx.strokeStyle = lineGrad
+    ctx.lineWidth = 1.8
+    drawCurve(ctx, points)
+    ctx.stroke()
+
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+
+    // Glowing dot at the leading edge of the price line
+    const tipPoint = points[points.length - 1]
+    const pulseSize = 3 + Math.sin(time * 4) * 1.5
+    ctx.shadowColor = 'rgba(14, 224, 224, 0.8)'
+    ctx.shadowBlur = 15
+    ctx.fillStyle = 'rgba(14, 224, 224, 0.9)'
+    ctx.beginPath()
+    ctx.arc(tipPoint.x, tipPoint.y, pulseSize, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+
+    // Area fill under price line
+    const areaGrad = ctx.createLinearGradient(0, height * 0.3, 0, height * 0.75)
+    areaGrad.addColorStop(0, 'rgba(14, 224, 224, 0.06)')
+    areaGrad.addColorStop(1, 'rgba(14, 224, 224, 0.0)')
+
+    ctx.fillStyle = areaGrad
+    drawCurve(ctx, points)
+    ctx.lineTo(width, height)
+    ctx.lineTo(0, height)
+    ctx.closePath()
+    ctx.fill()
+
+    // 8. Cursor interaction
     if (mx > -1000) {
-      const gradient = ctx.createRadialGradient(mx, my, 0, mx, my, GLOW_RADIUS * 1.5)
-      gradient.addColorStop(0, 'rgba(212, 132, 122, 0.15)') // Rose
-      gradient.addColorStop(0.3, 'rgba(201, 168, 124, 0.08)') // Gold
-      gradient.addColorStop(0.6, 'rgba(167, 139, 219, 0.03)') // Lavender
+      // Radial glow
+      const gradient = ctx.createRadialGradient(mx, my, 0, mx, my, GLOW_RADIUS * 1.2)
+      gradient.addColorStop(0, 'rgba(14, 224, 224, 0.14)')
+      gradient.addColorStop(0.35, 'rgba(201, 168, 124, 0.07)')
+      gradient.addColorStop(0.7, 'rgba(167, 139, 219, 0.02)')
       gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
       ctx.fillStyle = gradient
       ctx.fillRect(0, 0, width, height)
+
+      // Crosshairs
+      ctx.strokeStyle = 'rgba(14, 224, 224, 0.15)'
+      ctx.lineWidth = 0.5
+      ctx.setLineDash([4, 8])
+
+      ctx.beginPath()
+      ctx.moveTo(0, my)
+      ctx.lineTo(width, my)
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.moveTo(mx, 0)
+      ctx.lineTo(mx, height)
+      ctx.stroke()
+
+      ctx.setLineDash([])
+
+      // Price tag on crosshair (right edge)
+      const tagW = 58
+      const tagH = 22
+      const tagX = width - tagW - 4
+      const tagY = my - tagH / 2
+      ctx.fillStyle = 'rgba(14, 224, 224, 0.15)'
+      ctx.beginPath()
+      ctx.roundRect(tagX, tagY, tagW, tagH, 4)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(14, 224, 224, 0.3)'
+      ctx.lineWidth = 0.5
+      ctx.stroke()
+
+      ctx.fillStyle = 'rgba(14, 224, 224, 0.6)'
+      ctx.font = '10px monospace'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const fakePrice = (1000 - my * 0.5).toFixed(2)
+      ctx.fillText(fakePrice, tagX + tagW / 2, my)
+
+      // Time tag on crosshair (bottom edge)
+      const tTagW = 52
+      const tTagH = 18
+      const tTagX = mx - tTagW / 2
+      const tTagY = height - tTagH - 4
+      ctx.fillStyle = 'rgba(201, 168, 124, 0.12)'
+      ctx.beginPath()
+      ctx.roundRect(tTagX, tTagY, tTagW, tTagH, 4)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(201, 168, 124, 0.25)'
+      ctx.lineWidth = 0.5
+      ctx.stroke()
+
+      ctx.fillStyle = 'rgba(201, 168, 124, 0.5)'
+      ctx.font = '9px monospace'
+      const mins = Math.floor((mx / width) * 60)
+      ctx.fillText(`${String(Math.floor(mins / 60) + 9).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`, mx, tTagY + tTagH / 2)
     }
 
     animFrameRef.current = requestAnimationFrame(draw)
@@ -203,7 +350,7 @@ export default function GridBackground() {
     const resize = () => {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
-      initParticlesAndOrbs(canvas.width, canvas.height)
+      initCandles(canvas.width, canvas.height)
     }
 
     const handleMouseMove = (e) => {
@@ -222,7 +369,7 @@ export default function GridBackground() {
       }
     }
 
-    const handleInteractionEnd = () => {
+    const handleMouseLeave = () => {
       targetMouseRef.current = { x: -9999, y: -9999 }
     }
 
@@ -231,7 +378,7 @@ export default function GridBackground() {
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('touchstart', handleTouchMove, { passive: true })
     window.addEventListener('touchmove', handleTouchMove, { passive: true })
-    document.addEventListener('mouseleave', handleInteractionEnd)
+    document.addEventListener('mouseleave', handleMouseLeave)
 
     animFrameRef.current = requestAnimationFrame(draw)
 
@@ -240,7 +387,7 @@ export default function GridBackground() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('touchstart', handleTouchMove)
       window.removeEventListener('touchmove', handleTouchMove)
-      document.removeEventListener('mouseleave', handleInteractionEnd)
+      document.removeEventListener('mouseleave', handleMouseLeave)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
   }, [draw])
@@ -252,18 +399,4 @@ export default function GridBackground() {
       aria-hidden="true"
     />
   )
-}
-
-function drawRoundedRect(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  ctx.lineTo(x + r, y + h)
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-  ctx.lineTo(x, y + r)
-  ctx.quadraticCurveTo(x, y, x + r, y)
-  ctx.closePath()
 }
