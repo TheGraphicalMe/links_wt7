@@ -622,6 +622,11 @@ img {
   .link-btn {
     padding: 14px 14px;
     gap: 12px;
+    background: rgba(18, 20, 31, 0.85); /* Less transparent on mobile */
+  }
+
+  .link-btn-featured {
+    background: rgba(45, 33, 27, 0.9); /* Less transparent on mobile */
   }
 
   .link-btn-icon {
